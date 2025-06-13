@@ -1,9 +1,10 @@
 import { Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { VoiceAssistantComponent } from './components/voice-assistant/voice-assistant.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  standalone: true,
+  imports: [VoiceAssistantComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })

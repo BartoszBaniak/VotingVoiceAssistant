@@ -1,0 +1,14 @@
+<div class="assistant-container">
+  <h1>Asystent Głosowania</h1>
+
+  <p class="status">{{ status }}</p>
+
+  <button (click)="startListening()" class="mic-button" [disabled]="isListening">
+    🎤
+  </button>
+
+  <div *ngIf="recognizedText" class="recognized-text">
+    <strong>Rozpoznano:</strong>
+    <code>{{ recognizedText }}</code>
+  </div>
+</div>
