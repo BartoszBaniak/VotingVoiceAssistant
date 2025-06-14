@@ -1,9 +1,15 @@
-import { Component, ChangeDetectorRef, ViewChild, ElementRef, OnDestroy } from '@angular/core';
+import { Component, ChangeDetectorRef, ViewChild, ElementRef, OnDestroy, NgZone, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DialogueService } from '../../services/dialogue.service';
-import { DialogueRequest } from '../../models/dialogue.model';
+import { DialogueRequest, DialogueResponse } from '../../models/dialogue.model';
+import * as faceapi from 'face-api.js';
 
 declare var webkitSpeechRecognition: any;
+
+interface ChatMessage {
+  sender: 'user' | 'assistant';
+  text: string;
+}
 
 @Component({
   selector: 'app-voice-assistant',
@@ -12,45 +18,70 @@ declare var webkitSpeechRecognition: any;
   templateUrl: './voice-assistant.component.html',
   styleUrls: ['./voice-assistant.component.css']
 })
-export class VoiceAssistantComponent implements OnDestroy {
-  // Referencja do elementu <video> z naszego pliku HTML
+export class VoiceAssistantComponent implements OnInit, OnDestroy {
   @ViewChild('videoElement') videoElement?: ElementRef<HTMLVideoElement>;
+  @ViewChild('canvasElement') canvasElement?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('chatContainer') private chatContainer?: ElementRef;
 
-  // --- ZMIENNE STANU ---
   faceScanned: boolean = false;
   isScanningFace: boolean = false;
   cameraStarted: boolean = false;
-  status: string = 'Aby rozpocząć, zweryfikuj swoją tożsamość.';
+  status: string = 'Inicjalizacja...';
   isListening: boolean = false;
-  recognizedText: string = '';
   recognition: any;
-  private stream?: MediaStream;
+  finalScreen: boolean = false;
+  
+  conversationHistory: ChatMessage[] = [];
+  candidates: string[] = [];
 
-  constructor(private cdr: ChangeDetectorRef, private dialogueService: DialogueService) {
+  modelsLoaded: boolean = false;
+  private detectionInterval: any;
+  private stream?: MediaStream;
+  private currentAudio: HTMLAudioElement | null = null;
+  
+  constructor(private cdr: ChangeDetectorRef, private dialogueService: DialogueService, private zone: NgZone) {
     if ('webkitSpeechRecognition' in window) {
       this.recognition = new webkitSpeechRecognition();
       this.setupRecognition();
+    } else {
+      this.status = 'Twoja przeglądarka nie wspiera rozpoznawania mowy.';
     }
   }
 
-  // --- NOWA LOGIKA KAMERY ---
+  ngOnInit() {
+    this.status = "Przygotowywanie asystenta... Proszę czekać.";
+    this.loadModels();
+  }
+
+  private async loadModels() {
+    try {
+      const MODEL_URL = '/assets/models'; 
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+      ]);
+      this.modelsLoaded = true;
+      this.status = 'Kliknij przycisk, aby rozpocząć.';
+      this.cdr.detectChanges();
+    } catch (e) {
+      console.error("Błąd ładowania modeli face-api.js", e);
+      this.status = "Błąd krytyczny: Nie można załadować plików modeli AI.";
+      this.cdr.detectChanges();
+    }
+  }
+
   async startCamera(): Promise<void> {
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      try {
-        this.stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        if (this.videoElement && this.videoElement.nativeElement) {
-          this.videoElement.nativeElement.srcObject = this.stream;
-          this.cameraStarted = true;
-          this.cdr.detectChanges();
-        }
-      } catch (err) {
-        console.error("Błąd dostępu do kamery: ", err);
-        this.status = 'Nie można uzyskać dostępu do kamery. Sprawdź pozwolenia.';
-        this.isScanningFace = false;
-        this.cdr.detectChanges();
+    if (this.cameraStarted) return;
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (this.videoElement) {
+        this.videoElement.nativeElement.srcObject = this.stream;
+        this.cameraStarted = true;
       }
-    } else {
-      this.status = 'Twoja przeglądarka nie wspiera dostępu do kamery.';
+    } catch (err) {
+      this.status = 'Nie można uzyskać dostępu do kamery. Sprawdź pozwolenia.';
+      this.isScanningFace = false;
     }
   }
 
@@ -62,74 +93,163 @@ export class VoiceAssistantComponent implements OnDestroy {
   }
 
   async scanFace(): Promise<void> {
+    if (!this.modelsLoaded || this.isScanningFace) return;
     this.isScanningFace = true;
     this.status = 'Uruchamianie kamery...';
     await this.startCamera();
-
-    // Sprawdzamy, czy kamera poprawnie się uruchomiła
-    if (!this.cameraStarted) return; 
-
-    this.status = 'Weryfikacja w toku... Proszę patrzeć w kamerę.';
-    this.cdr.detectChanges();
-
-    // Symulujemy proces weryfikacji trwający 10 sekund
-    setTimeout(() => {
-      this.stopCamera();
-      this.faceScanned = true;
-      this.isScanningFace = false;
-      this.status = 'Weryfikacja pomyślna. Naciśnij przycisk, aby rozpocząć głosowanie.';
+    
+    this.videoElement?.nativeElement.addEventListener('play', () => {
+      this.status = 'Patrz w kamerę. Szukam twarzy...';
       this.cdr.detectChanges();
-    }, 10000);
-  }
-
-  // --- LOGIKA ASYSTENTA GŁOSOWEGO (bez zmian) ---
-  setupRecognition(): void {
-    this.recognition.continuous = false;
-    this.recognition.interimResults = false;
-    this.recognition.lang = 'pl-PL';
-    this.recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      this.recognizedText = transcript;
-      this.status = 'Przetwarzanie odpowiedzi...';
-      this.cdr.detectChanges();
-      const request: DialogueRequest = { text: transcript };
-      this.dialogueService.sendMessage(request).subscribe({
-        next: (response) => {
-          this.status = response.displayText;
-          const audio = new Audio('http://127.0.0.1:5000${response.audioUrl}');
-          audio.play();
-          this.isListening = false;
-          this.cdr.detectChanges();
-        },
-        error: (err) => {
-          this.status = 'Błąd połączenia z serwerem. Sprawdź konsolę.';
-          this.isListening = false;
-          this.cdr.detectChanges();
+      
+      this.detectionInterval = setInterval(async () => {
+        if (!this.videoElement || !this.videoElement.nativeElement) return;
+        const detections = await faceapi.detectAllFaces(this.videoElement.nativeElement, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
+        if (this.canvasElement && this.videoElement) {
+            const video = this.videoElement.nativeElement;
+            const canvas = this.canvasElement.nativeElement;
+            const displaySize = { width: video.videoWidth, height: video.videoHeight };
+            faceapi.matchDimensions(canvas, displaySize);
+            const resizedDetections = faceapi.resizeResults(detections, displaySize);
+            const context = canvas.getContext('2d');
+            context?.clearRect(0, 0, canvas.width, canvas.height);
+            faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
         }
-      });
-    };
-    this.recognition.onerror = (event: any) => {
-      this.isListening = false;
-      this.cdr.detectChanges();
-    };
-    this.recognition.onend = () => {
-      if (this.isListening) {
-        this.isListening = false;
-        this.cdr.detectChanges();
-      }
-    };
-  }
-  startListening(): void {
-    if (!this.recognition) return;
-    this.isListening = true;
-    this.status = 'Słucham...';
-    this.recognizedText = '';
-    this.recognition.start();
+        
+        if (detections.length > 0) {
+          clearInterval(this.detectionInterval);
+          this.cdr.detectChanges();
+          setTimeout(() => {
+              if (!this.isScanningFace) return;
+              this.faceScanned = true;
+              this.isScanningFace = false;
+              this.stopCamera();
+              this.startConversation();
+          }, 500);
+        }
+      }, 50);
+    });
   }
 
-  // --- CYKL ŻYCIA KOMPONENTU ---
-  // Upewniamy się, że kamera zostanie wyłączona, gdy komponent jest niszczony
+  private startConversation(): void {
+    this.status = 'Asystent uruchamia się...';
+    this.cdr.detectChanges();
+    const request: DialogueRequest = { text: '__START_CONVERSATION__' };
+    this.dialogueService.sendMessage(request).subscribe({
+        next: (response) => this.handleAssistantResponse(response),
+        error: (err) => {
+            console.error("Błąd inicjalizacji dialogu:", err);
+            this.status = 'Nie udało się rozpocząć rozmowy. Sprawdź konsolę.';
+        }
+    });
+  }
+
+  private handleAssistantResponse(response: DialogueResponse): void {
+    this.zone.run(() => {
+        this.addMessageToHistory('assistant', response.displayText);
+        console.log(response.displayText)
+
+        if (response.payload && Array.isArray(response.payload)) {
+          this.candidates = response.payload;
+        }
+
+        if (response.payload?.status === 'finished') {
+          console.log(response)
+          this.currentAudio = new Audio(`http://127.0.0.1:5000${response.audioUrl}`);
+          this.currentAudio.onended = () => this.zone.run(() => {this.finalScreen = true; this.isListening = false; this.recognition.stop();});
+          this.currentAudio.play().catch(e => console.error("Błąd odtwarzania audio:", e));
+        } else {
+          this.currentAudio = new Audio(`http://127.0.0.1:5000${response.audioUrl}`);
+          this.currentAudio.onended = () => this.zone.run(() => this.startListening());
+          this.currentAudio.play().catch(e => console.error("Błąd odtwarzania audio:", e));
+        }
+    });
+  }
+
+  setupRecognition(): void {
+    const recognition = new webkitSpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'pl-PL';
+
+    recognition.onresult = (event: any) => { 
+        const transcript = event.results[0][0].transcript;
+        this.zone.run(() => {
+            this.addMessageToHistory('user', transcript);
+            this.status = 'Przetwarzanie odpowiedzi...';
+            this.isListening = false;
+            const request: DialogueRequest = { text: transcript };
+            this.dialogueService.sendMessage(request).subscribe({
+              next: (response) => this.handleAssistantResponse(response),
+              error: (err) => {
+                  console.error("Błąd API:", err);
+                  this.status = 'Błąd połączenia z serwerem. Sprawdź konsolę.';
+              }
+            });
+        });
+     };
+
+    recognition.onerror = (event: any) => { 
+        this.zone.run(() => {
+            console.error('Błąd rozpoznawania mowy:', event);
+            if (event.error === 'no-speech') {
+              this.status = 'Nie wykryto mowy. Spróbuj ponownie.';
+              setTimeout(() => this.startListening(), 2000);
+            } else {
+              this.status = 'Wystąpił błąd rozpoznawania mowy.';
+            }
+            this.isListening = false;
+        });
+    };
+    
+    recognition.onend = () => {
+      this.zone.run(() => {
+        if (this.isListening) {
+          this.cdr.detectChanges();
+          setTimeout(() => this.startListening(), 200);
+        }
+      }); 
+    };
+
+    this.recognition = recognition;
+  }
+
+  startListening(): void { 
+      if (this.isListening) return;
+      this.isListening = true;
+      this.status = 'Słucham...';
+      this.cdr.detectChanges();
+      this.recognition.start();
+  }
+
+  private addMessageToHistory(sender: 'user' | 'assistant', text: string): void {
+    this.conversationHistory.push({ sender, text });
+    this.status = sender === 'assistant' ? 'Asystent mówi...' : 'Czekam na Twoją odpowiedź...';
+    this.cdr.detectChanges();
+    this.scrollToBottom();
+  }
+
+  private scrollToBottom(): void {
+    try {
+        if (this.chatContainer) {
+            this.chatContainer.nativeElement.scrollTop = this.chatContainer.nativeElement.scrollHeight;
+        }
+    } catch (err) {
+        console.error("Nie udało się przewinąć czatu:", err);
+    }
+  }
+
+  restartApp(): void {
+    window.location.reload();
+  }
+  
   ngOnDestroy(): void {
+    clearInterval(this.detectionInterval);
     this.stopCamera();
+    if (this.recognition) { this.recognition.stop(); }
+    if (this.currentAudio) {
+      this.currentAudio.pause();
+      this.currentAudio = null;
+    }
   }
 }

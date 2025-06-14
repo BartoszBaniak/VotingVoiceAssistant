@@ -9,13 +9,10 @@ import { DialogueRequest, DialogueResponse } from '../models/dialogue.model';
 })
 export class DialogueService {
 
-  // Definiujemy URL do Twojego API
   private apiUrl = 'http://127.0.0.1:5000/api/dialog';
 
-  // KROK 2: Wstrzykujemy HttpClient do konstruktora
   constructor(private http: HttpClient) { }
 
-  // KROK 3: Zastępujemy logikę zaślepki prawdziwym zapytaniem HTTP
   sendMessage(request: DialogueRequest): Observable<DialogueResponse> {
     console.log('Wysyłam do prawdziwego API:', request);
     return this.http.post<DialogueResponse>(this.apiUrl, request);

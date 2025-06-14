@@ -1,42 +1,66 @@
-<!-- Główny kontener aplikacji -->
 <div class="assistant-container">
-
-  <!-- SEKCJA SKANOWANIA TWARZY -->
+  <div class="app-title">
+    <img src="assets/Herb_Polski.png" width="80">
+    <h1>Rządowy Asystent Głosowy Wyborcy</h1>
+  </div>
+  
   <div *ngIf="!faceScanned" class="face-scan-section">
     <h1>Weryfikacja Biometryczna</h1>
     <p class="status">{{ status }}</p>
-
-    <!-- Kontener na kamerę -->
     <div class="camera-placeholder">
-      <!-- Element video, który wyświetli obraz z kamery -->
-      <!-- #videoElement to referencja, której użyjemy w kodzie TS -->
-      <video #videoElement autoplay playsinline [class.hidden]="!cameraStarted"></video>
-
-      <!-- Ikonka kamery widoczna na początku -->
-      <div *ngIf="!cameraStarted" class="camera-icon">📷</div>
-
-      <!-- Animacja skanowania widoczna podczas "weryfikacji" -->
-      <div *ngIf="isScanningFace && cameraStarted" class="scanner-animation"></div>
+      <video #videoElement autoplay muted playsinline [class.hidden]="!cameraStarted"></video>
+      <canvas #canvasElement class="overlay-canvas"></canvas>
+      <div *ngIf="!cameraStarted && modelsLoaded" class="camera-icon">📷</div>
     </div>
-
-    <button (click)="scanFace()" class="scan-button" [disabled]="isScanningFace">
-      {{ isScanningFace ? 'Weryfikacja...' : 'Rozpocznij weryfikację' }}
+    <button (click)="scanFace()" class="action-button" [disabled]="isScanningFace || !modelsLoaded">
+      {{ isScanningFace ? 'Weryfikacja...' : 'Rozpocznij proces głosowania' }}
     </button>
   </div>
 
-  <!-- SEKCJA ASYSTENTA GŁOSOWEGO -->
-  <div *ngIf="faceScanned" class="voice-section">
-    <h1>Asystent Głosowania</h1>
-    <p class="status">{{ status }}</p>
+  <div *ngIf="faceScanned && !finalScreen" class="main-view">
 
-    <button (click)="startListening()" class="mic-button" [disabled]="isListening">
-      🎤
-    </button>
+    <div class="informations-panel">
+      <div class="candidates-panel" *ngIf="candidates.length > 0">
+        <h2>Kandydaci</h2>
+        <ul class="candidates-list">
+          <li *ngFor="let candidate of candidates"><i style="margin-right: 7px;"
+              class="fa-regular fa-circle-user"></i>{{ candidate }}</li>
+        </ul>
+      </div>
 
-    <div *ngIf="recognizedText" class="recognized-text">
-      <strong>Rozpoznano:</strong>
-      <code>{{ recognizedText }}</code>
+      <div class="personal-panel">
+        <h2>Twoje dane</h2>
+        <ul class="data-list">
+          <li> <b>Imię i nazwisko:</b> Wyborca nr 1</li>
+          <li> <b>PESEL:</b> 73111004873</li>
+        </ul>
+      </div>
+    </div>
+
+
+    <div class="conversation-section">
+      <div class="chat-header">
+        <h1>Historia rozmowy</h1>
+      </div>
+      <div class="chat-log-container" #chatContainer>
+        <div *ngFor="let message of conversationHistory" class="chat-message"
+          [ngClass]="{'user-message': message.sender === 'user', 'assistant-message': message.sender === 'assistant'}">
+          <div class="message-bubble">
+            {{ message.text }}
+          </div>
+        </div>
+      </div>
+      <div class="status-bar">
+        <div class="listening-indicator" [class.active]="isListening"></div>
+        <span>{{ status }}</span>
+      </div>
     </div>
   </div>
 
+  <div *ngIf="finalScreen" class="finished-screen">
+      <div class="finished-icon">✅</div>
+      <h1>Głosowanie zakończone!</h1>
+      <p>Dziękujemy za oddanie głosu. Twój wybór został bezpiecznie zapisany.</p>
+      <button (click)="restartApp()" class="action-button">Zagłosuj ponownie</button>
+    </div>
 </div>
