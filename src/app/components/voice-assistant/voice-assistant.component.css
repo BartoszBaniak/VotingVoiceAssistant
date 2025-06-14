@@ -48,3 +48,86 @@ code {
   color: #d63384;
   font-weight: bold;
 }
+
+.face-scan-section, .voice-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.camera-placeholder {
+  width: 250px;
+  height: 250px;
+  border: 3px dashed #ccc;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 20px 0;
+  overflow: hidden;
+  position: relative;
+  background-color: #f8f9fa;
+}
+
+/* Style dla elementu video */
+.camera-placeholder video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* To sprawia, że wideo wypełnia koło bez zniekształceń */
+  border-radius: 50%;
+  transform: scaleX(-1); /* Odbicie lustrzane dla naturalnego widoku "selfie" */
+}
+
+.camera-placeholder .hidden {
+  display: none;
+}
+
+.camera-icon {
+  font-size: 5rem;
+  color: #ccc;
+}
+
+.scan-button {
+  padding: 15px 30px;
+  font-size: 1.1rem;
+  border-radius: 8px;
+  border: none;
+  background-color: #007bff;
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.scan-button:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+
+.scan-button:disabled {
+  background-color: #5a9ed8;
+  cursor: not-allowed;
+}
+
+/* --- ZAKTUALIZOWANA Animacja skanowania --- */
+.scanner-animation::after {
+  content: '';
+  display: block;
+  position: absolute;
+  width: 100%;
+  height: 4px; /* Grubość linii */
+  background: #ff3838; /* Czerwony kolor linii */
+  border-radius: 2px;
+  /* Czerwona poświata dla lepszego efektu */
+  box-shadow: 0 0 15px rgba(255, 0, 0, 0.7), 0 0 25px rgba(255, 0, 0, 0.7);
+  /* Animacja trwająca 3 sekundy, powtarzana w nieskończoność */
+  animation: scan 3s infinite linear;
+}
+
+@keyframes scan {
+  0% {
+    top: -10%;
+  }
+  100% {
+    top: 110%;
+  }
+}

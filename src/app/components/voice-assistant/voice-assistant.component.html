@@ -1,14 +1,42 @@
+<!-- Główny kontener aplikacji -->
 <div class="assistant-container">
-  <h1>Asystent Głosowania</h1>
 
-  <p class="status">{{ status }}</p>
+  <!-- SEKCJA SKANOWANIA TWARZY -->
+  <div *ngIf="!faceScanned" class="face-scan-section">
+    <h1>Weryfikacja Biometryczna</h1>
+    <p class="status">{{ status }}</p>
 
-  <button (click)="startListening()" class="mic-button" [disabled]="isListening">
-    🎤
-  </button>
+    <!-- Kontener na kamerę -->
+    <div class="camera-placeholder">
+      <!-- Element video, który wyświetli obraz z kamery -->
+      <!-- #videoElement to referencja, której użyjemy w kodzie TS -->
+      <video #videoElement autoplay playsinline [class.hidden]="!cameraStarted"></video>
 
-  <div *ngIf="recognizedText" class="recognized-text">
-    <strong>Rozpoznano:</strong>
-    <code>{{ recognizedText }}</code>
+      <!-- Ikonka kamery widoczna na początku -->
+      <div *ngIf="!cameraStarted" class="camera-icon">📷</div>
+
+      <!-- Animacja skanowania widoczna podczas "weryfikacji" -->
+      <div *ngIf="isScanningFace && cameraStarted" class="scanner-animation"></div>
+    </div>
+
+    <button (click)="scanFace()" class="scan-button" [disabled]="isScanningFace">
+      {{ isScanningFace ? 'Weryfikacja...' : 'Rozpocznij weryfikację' }}
+    </button>
   </div>
+
+  <!-- SEKCJA ASYSTENTA GŁOSOWEGO -->
+  <div *ngIf="faceScanned" class="voice-section">
+    <h1>Asystent Głosowania</h1>
+    <p class="status">{{ status }}</p>
+
+    <button (click)="startListening()" class="mic-button" [disabled]="isListening">
+      🎤
+    </button>
+
+    <div *ngIf="recognizedText" class="recognized-text">
+      <strong>Rozpoznano:</strong>
+      <code>{{ recognizedText }}</code>
+    </div>
+  </div>
+
 </div>
