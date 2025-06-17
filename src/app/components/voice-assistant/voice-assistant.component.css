@@ -235,6 +235,26 @@ h1 { color: #333; }
   animation: pulse 1.5s infinite;
 }
 
+.retry-listen-button {
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+  margin-left: auto; /* Wypycha przycisk na prawą stronę */
+}
+
+.retry-listen-button:hover {
+  background-color: #5a6268;
+}
+
 .finished-icon {
   font-size: 70px;
 }

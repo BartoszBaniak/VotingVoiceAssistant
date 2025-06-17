@@ -28,6 +28,7 @@ export class VoiceAssistantComponent implements OnInit, OnDestroy {
   cameraStarted: boolean = false;
   status: string = 'Inicjalizacja...';
   isListening: boolean = false;
+  isConversationFinished: boolean = false;
   recognition: any;
   finalScreen: boolean = false;
   
@@ -206,7 +207,9 @@ export class VoiceAssistantComponent implements OnInit, OnDestroy {
       this.zone.run(() => {
         if (this.isListening) {
           this.cdr.detectChanges();
-          setTimeout(() => this.startListening(), 200);
+          // setTimeout(() => this.startListening(), 600);
+          this.isConversationFinished = true;
+          this.isListening = false;
         }
       }); 
     };
@@ -217,6 +220,7 @@ export class VoiceAssistantComponent implements OnInit, OnDestroy {
   startListening(): void { 
       if (this.isListening) return;
       this.isListening = true;
+      this.isConversationFinished = false;
       this.status = 'Słucham...';
       this.cdr.detectChanges();
       this.recognition.start();

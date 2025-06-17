@@ -53,6 +53,9 @@
       <div class="status-bar">
         <div class="listening-indicator" [class.active]="isListening"></div>
         <span>{{ status }}</span>
+        <button *ngIf="!isListening && isConversationFinished" (click)="startListening()" class="retry-listen-button" title="Wznów nasłuchiwanie">
+          🎤
+        </button>
       </div>
     </div>
   </div>
